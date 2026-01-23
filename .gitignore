@@ -1,0 +1,19 @@
+# SBT
+target/
+project/target/
+project/project/
+
+# Scala
+*.class
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.bsp/
+
+# Metals
+.metals/
+.bloop/
+metals.sbt
