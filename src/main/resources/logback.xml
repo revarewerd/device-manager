@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Конфигурация логирования для Device Manager
+    
+    Уровни логирования:
+    - TRACE: Детальная отладочная информация
+    - DEBUG: Отладочная информация для разработки
+    - INFO:  Информационные сообщения о работе сервиса
+    - WARN:  Предупреждения о потенциальных проблемах
+    - ERROR: Ошибки, требующие внимания
+    
+    Форматы вывода:
+    - Консоль: Цветной вывод для разработки
+    - Файл: JSON формат для ELK стека
+-->
+<configuration scan="true" scanPeriod="30 seconds">
+    
+    <!-- Переменные окружения с значениями по умолчанию -->
+    <variable name="LOG_LEVEL" value="${LOG_LEVEL:-INFO}" />
+    <variable name="LOG_DIR" value="${LOG_DIR:-logs}" />
+    <variable name="SERVICE_NAME" value="device-manager" />
+    
+    <!-- 
+        Консольный аппендер
+        Используется в режиме разработки
+    -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- 
+        Файловый аппендер с ротацией
+        Основной лог-файл для production
+    -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${SERVICE_NAME}.log</file>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Ежедневная ротация -->
+            <fileNamePattern>${LOG_DIR}/${SERVICE_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Максимальный размер одного файла -->
+            <maxFileSize>100MB</maxFileSize>
+            <!-- Хранить логи за последние 30 дней -->
+            <maxHistory>30</maxHistory>
+            <!-- Общий максимальный размер всех логов -->
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+        
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- 
+        JSON аппендер для ELK стека
+        Структурированные логи для анализа
+    -->
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${SERVICE_NAME}.json</file>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${SERVICE_NAME}.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        
+        <!-- JSON формат для ELK -->
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="ch.qos.logback.contrib.json.classic.JsonLayout">
+                <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSSX</timestampFormat>
+                <timestampFormatTimezoneId>UTC</timestampFormatTimezoneId>
+                <appendLineSeparator>true</appendLineSeparator>
+                <jsonFormatter class="ch.qos.logback.contrib.jackson.JacksonJsonFormatter">
+                    <prettyPrint>false</prettyPrint>
+                </jsonFormatter>
+            </layout>
+        </encoder>
+    </appender>
+    
+    <!-- 
+        Отдельный файл для ошибок
+        Быстрый доступ к критическим проблемам
+    -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${SERVICE_NAME}-error.log</file>
+        
+        <!-- Фильтр: только ERROR и выше -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${SERVICE_NAME}-error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%ex{full}</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- 
+        Асинхронный аппендер
+        Оборачивает FILE для неблокирующего логирования
+    -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>500</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>true</includeCallerData>
+        <appender-ref ref="FILE" />
+    </appender>
+    
+    <!-- 
+        Настройка логирования для конкретных пакетов
+    -->
+    
+    <!-- Device Manager - основной код -->
+    <logger name="com.wayrecall.device" level="${LOG_LEVEL}" />
+    
+    <!-- API запросы -->
+    <logger name="com.wayrecall.device.api" level="${LOG_LEVEL}" />
+    
+    <!-- Бизнес-логика -->
+    <logger name="com.wayrecall.device.service" level="${LOG_LEVEL}" />
+    
+    <!-- Репозитории (SQL) -->
+    <logger name="com.wayrecall.device.repository" level="${LOG_LEVEL}" />
+    
+    <!-- Kafka -->
+    <logger name="com.wayrecall.device.consumer" level="${LOG_LEVEL}" />
+    <logger name="com.wayrecall.device.infrastructure" level="${LOG_LEVEL}" />
+    <logger name="org.apache.kafka" level="WARN" />
+    
+    <!-- ZIO -->
+    <logger name="zio" level="WARN" />
+    <logger name="zio.http" level="INFO" />
+    
+    <!-- Doobie (SQL логи в DEBUG) -->
+    <logger name="doobie" level="INFO" />
+    <logger name="doobie.util.log" level="DEBUG" />
+    
+    <!-- HikariCP (connection pool) -->
+    <logger name="com.zaxxer.hikari" level="INFO" />
+    <logger name="com.zaxxer.hikari.HikariConfig" level="INFO" />
+    
+    <!-- Redis (Lettuce) -->
+    <logger name="io.lettuce" level="INFO" />
+    
+    <!-- 
+        Корневой логгер
+        Все сообщения, не попавшие под конкретные настройки
+    -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_FILE" />
+        <appender-ref ref="ERROR_FILE" />
+        <!-- Раскомментировать для JSON логов -->
+        <!-- <appender-ref ref="JSON_FILE" /> -->
+    </root>
+    
+</configuration>
