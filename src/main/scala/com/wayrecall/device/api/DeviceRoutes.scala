@@ -34,7 +34,7 @@ object DeviceRoutes:
     Routes(
       // GET /api/devices?organizationId=1
       Method.GET / "api" / "devices" -> handler { (request: Request) =>
-        val orgIdParam = request.url.queryParams.get("organizationId").flatMap(_.headOption)
+        val orgIdParam = request.url.queryParams.get("organizationId")
         
         orgIdParam match
           case Some(orgIdStr) =>
@@ -42,9 +42,10 @@ object DeviceRoutes:
               case Some(orgId) =>
                 DeviceService.getDevicesByOrganization(OrganizationId(orgId))
                   .map(devices => Response.json(devices.toJson))
+                  .mapError(e => e: Throwable)
                   .catchAll(handleError)
               case None =>
-                ZIO.succeed(badRequest("organizationId должен быть числом"))
+                ZIO.succeed(badRequest("орganizationId должен быть числом"))
           case None =>
             ZIO.succeed(badRequest("Параметр organizationId обязателен"))
       },
@@ -96,22 +97,24 @@ object DeviceRoutes:
           command = UpdateDeviceCommand(
             name = cmd.name,
             protocol = cmd.protocol,
-            vehicleId = cmd.vehicleId.map(_.map(VehicleId.apply)),
-            sensorProfileId = cmd.sensorProfileId.map(_.map(SensorProfileId.apply)),
+            vehicleId = cmd.vehicleId,
+            sensorProfileId = cmd.sensorProfileId,
             phoneNumber = cmd.phoneNumber,
             firmwareVersion = cmd.firmwareVersion
           )
           device <- DeviceService.updateDevice(DeviceId(id), command)
         yield Response.json(device.toJson))
+          .mapError(e => e: Throwable)
           .catchAll(handleError)
       },
       
       // DELETE /api/devices/:id
       Method.DELETE / "api" / "devices" / long("id") -> handler { (id: Long, request: Request) =>
-        val reason = request.url.queryParams.get("reason").flatMap(_.headOption)
+        val reason = request.url.queryParams.get("reason")
         
         DeviceService.deleteDevice(DeviceId(id), reason)
           .as(Response.status(Status.NoContent))
+          .mapError(e => e: Throwable)
           .catchAll(handleError)
       },
       
@@ -152,7 +155,7 @@ object DeviceRoutes:
   /**
    * Обработчик ошибок -> HTTP Response
    */
-  private def handleError(error: DomainError): UIO[Response] =
+  private def handleError(error: Throwable): UIO[Response] =
     error match
       case e: ValidationError =>
         ZIO.succeed(Response.json(ErrorResponse(e.code, e.message).toJson).status(Status.BadRequest))
@@ -170,7 +173,7 @@ object DeviceRoutes:
         ZIO.logError(s"Ошибка инфраструктуры: ${e.message}") *>
         ZIO.succeed(Response.json(ErrorResponse(e.code, "Внутренняя ошибка сервера").toJson).status(Status.InternalServerError))
       
-      case e =>
+      case e: Throwable =>
         ZIO.logError(s"Неизвестная ошибка: ${e.getMessage}") *>
         ZIO.succeed(Response.json(ErrorResponse("UNKNOWN_ERROR", "Неизвестная ошибка").toJson).status(Status.InternalServerError))
   

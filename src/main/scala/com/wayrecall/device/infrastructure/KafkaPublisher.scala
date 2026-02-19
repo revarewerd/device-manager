@@ -51,8 +51,9 @@ object KafkaPublisher:
       val value = event.toJson
       
       sendToKafka(topic, key, value)
-        .tap(_ => ZIO.logDebug(s"Событие ${event.eventType} опубликовано в топик $topic"))
         .mapError(e => InfrastructureError.KafkaError(e.getMessage))
+        .as(())
+        .tap(_ => ZIO.logDebug(s"Событие ${event.eventType} опубликовано в топик $topic"))
     
     /**
      * Извлекает ключ для партиционирования

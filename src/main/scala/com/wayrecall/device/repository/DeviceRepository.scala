@@ -1,6 +1,7 @@
 package com.wayrecall.device.repository
 
 import zio.*
+import zio.interop.catz.*
 import doobie.*
 import doobie.implicits.*
 import doobie.postgres.implicits.*
@@ -267,12 +268,12 @@ object DeviceRepository:
     
     /**
      * Выполняет Doobie запрос через ZIO
+     * 
+     * Благодаря zio-interop-cats, transact(xa) уже возвращает Task[A]
      */
     private def runQuery[A](query: ConnectionIO[A]): IO[DomainError, A] =
-      ZIO.fromFuture(_ => 
-        import cats.effect.unsafe.implicits.global
-        query.transact(xa).unsafeToFuture()
-      ).mapError(e => InfrastructureError.DatabaseError(e.getMessage))
+      query.transact(xa)
+        .mapError(e => InfrastructureError.DatabaseError(e.getMessage))
   
   /**
    * SQL запросы (отдельный объект для читаемости)

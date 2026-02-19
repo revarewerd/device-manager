@@ -8,7 +8,7 @@ import java.time.Duration
 import java.util.Properties
 import scala.jdk.CollectionConverters.*
 import com.wayrecall.device.domain.*
-import com.wayrecall.device.service.DeviceService
+import com.wayrecall.device.service.{DeviceService, CreateDeviceCommand, UpdateDeviceCommand}
 import com.wayrecall.device.config.AppConfig
 
 // ============================================================
@@ -41,7 +41,7 @@ object UnknownDeviceConsumer:
   /**
    * ZIO Layer для UnknownDeviceConsumer
    */
-  val live: ZLayer[AppConfig & DeviceService, Nothing, UnknownDeviceConsumer] =
+  val live: ZLayer[AppConfig & DeviceService, Throwable, UnknownDeviceConsumer] =
     ZLayer.scoped {
       for
         config <- ZIO.service[AppConfig]
@@ -130,7 +130,7 @@ private final class UnknownDeviceConsumerLive(
         ZIO.unit
       else
         ZIO.foreachDiscard(records.asScala)(processRecord)
-    }.whenZIO(ZIO.succeed(running))
+    }.when(running).unit
   
   /**
    * Обработка одной записи
@@ -152,15 +152,15 @@ private final class UnknownDeviceConsumerLive(
                       .mapError(e => new RuntimeException(s"Невалидный IMEI: $e"))
       
       // Пытаемся найти существующее устройство
-      existingDevice <- deviceService.findByImei(validImei).option
+      existingDevice <- deviceService.findByImei(validImei).either
       
       _ <- existingDevice match
-        case Some(device) =>
+        case Right(Some(device)) =>
           // Устройство уже зарегистрировано, обновляем lastSeenAt
-          ZIO.logDebug(s"Устройство уже зарегистрировано: ${device.id}") *>
+          ZIO.logDebug(s"Устройство уже зарегистрировано: ${device.imei.value}") *>
           updateLastSeen(device)
         
-        case None =>
+        case Right(None) | Left(_) =>
           // Регистрируем новое устройство (неактивное)
           registerNewDevice(validImei, event)
     yield ())

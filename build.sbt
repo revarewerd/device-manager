@@ -77,6 +77,9 @@ lazy val root = project
       "org.tpolecat" %% "doobie-hikari" % doobieVersion,
       "org.tpolecat" %% "doobie-postgres" % doobieVersion,
       
+      // ZIO Interop Cats (для Doobie Transactor)
+      "dev.zio" %% "zio-interop-cats" % "23.1.0.0",
+      
       // PostgreSQL драйвер
       "org.postgresql" % "postgresql" % postgresVersion,
       

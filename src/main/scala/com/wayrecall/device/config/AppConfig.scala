@@ -32,10 +32,14 @@ final case class ApplicationConfig(
 object AppConfig:
   /**
    * ZIO Layer для загрузки конфигурации
+   * 
+   * Загружает из application.conf (HOCON) с поддержкой переопределения
+   * через переменные окружения (${?ENV_VAR} в HOCON)
    */
   val live: ZLayer[Any, Config.Error, AppConfig] =
     ZLayer {
-      ZIO.config(deriveConfig[AppConfig].nested("app"))
+      TypesafeConfigProvider.fromResourcePath().kebabCase
+        .load(deriveConfig[AppConfig].nested("app"))
     }
 
 // ============================================================

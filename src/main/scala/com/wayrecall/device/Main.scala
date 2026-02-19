@@ -60,12 +60,17 @@ object Main extends ZIOAppDefault:
    * Точка входа приложения
    */
   override def run: ZIO[ZIOAppArgs & Scope, Any, Any] =
-    program
-      .provide(
-        // Конфигурация и производные слои
-        configLayers,
+    (for
+      _ <- ZIO.succeed(java.lang.System.out.println(">>> Device Manager Main starting..."))
+      result <- program
+        .provide(
+          // Конфигурация и производные слои
+          configLayers,
         
-        // Репозитории
+        // База данных
+        TransactorLayer.live,
+        
+        // Репозитории (требуют Transactor[Task])
         DeviceRepository.live,
         
         // Инфраструктура
@@ -73,27 +78,37 @@ object Main extends ZIOAppDefault:
         RedisSyncService.live,
         
         // Сервисы
-        DeviceService.live
+        DeviceService.live,
+        
+        // HTTP Server (порт из конфига)
+        ZLayer.fromZIO(
+          ZIO.serviceWith[AppConfig](config => 
+            Server.Config.default.port(config.http.port)
+          )
+        ) >>> Server.live
       )
-      .exitCode
+    yield result).tapError(e => 
+      ZIO.succeed(java.lang.System.err.println(s">>> FATAL ERROR: $e"))
+    ).catchAll(e =>
+      ZIO.succeed(java.lang.System.err.println(s">>> CAUGHT: $e")) *> ZIO.fail(e) 
+    ).exitCode
   
   /**
    * Основная программа
    */
-  private val program: ZIO[AppConfig & DeviceService, Throwable, Unit] =
+  private val program: ZIO[AppConfig & DeviceService & Server, Throwable, Unit] =
     for
       config <- ZIO.service[AppConfig]
       
       // Баннер
       _ <- printBanner(config)
       
-      // Собираем все маршруты
+      // Собираем все маршруты (Routes требуют DeviceService environment)
       allRoutes = HealthRoutes.routes ++ DeviceRoutes.routes
       
       // Запускаем HTTP сервер
       _ <- ZIO.logInfo(s"Запуск HTTP сервера на порту ${config.http.port}")
-      _ <- Server.serve(allRoutes)
-              .provide(Server.defaultWithPort(config.http.port))
+      _ <- Server.serve(allRoutes.toHttpApp)
               .ensuring(ZIO.logInfo("HTTP сервер остановлен"))
     yield ()
   

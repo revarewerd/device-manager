@@ -6,9 +6,18 @@
 # --------------------------
 # Этап 1: Сборка
 # --------------------------
-FROM sbtscala/scala-sbt:eclipse-temurin-jammy-21.0.2_13_1.9.8_3.4.0 AS builder
+FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
+
+# Устанавливаем SBT
+RUN apt-get update && \
+    apt-get install -y curl && \
+    echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list && \
+    echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee /etc/apt/sources.list.d/sbt_old.list && \
+    curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
+    apt-get update && \
+    apt-get install -y sbt
 
 # Копируем файлы сборки отдельно для кеширования зависимостей
 COPY build.sbt .
@@ -47,8 +56,8 @@ RUN mkdir -p ${APP_HOME} ${LOG_DIR} && \
 
 WORKDIR ${APP_HOME}
 
-# Копируем собранный JAR
-COPY --from=builder /app/target/scala-3.4.0/device-manager-assembly-1.0.0.jar app.jar
+# Копируем собранный JAR (assemblyJarName := "device-manager.jar")
+COPY --from=builder /app/target/scala-3.4.0/device-manager.jar app.jar
 RUN chown devicemanager:devicemanager app.jar
 
 # Переключаемся на непривилегированного пользователя
