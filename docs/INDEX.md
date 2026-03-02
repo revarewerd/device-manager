@@ -11,6 +11,7 @@
 | [KAFKA.md](KAFKA.md) | Kafka топики: consume / produce |
 | [DECISIONS.md](DECISIONS.md) | ADR — архитектурные решения |
 | [RUNBOOK.md](RUNBOOK.md) | Запуск, дебаг, типичные ошибки, мониторинг |
+| [TESTING.md](TESTING.md) | Тестирование: 69 тестов, домен, события, сервисный слой |
 
 ## Связанные документы (инфраструктура)
 
